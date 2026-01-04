@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - IoT Control</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container" style="max-width: 1200px;">
+        <div class="dashboard-header">
+            <h1>🏠 Welcome, <%= user.username %>!</h1>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+
+        <% if (devices && devices.length > 0) { %>
+            <div class="dashboard-section">
+                <h2>📱 Your Devices</h2>
+                <% devices.forEach(device => { %>
+                    <div class="device-card">
+                        <div class="device-header">
+                            <div>
+                                <div class="device-id">📡 <%= device._id %></div>
+                            </div>
+                            <span class="device-status <%= device.power === 'ON' ? 'on' : 'off' %>">
+                                <%= device.power === 'ON' ? '● ON' : '○ OFF' %>
+                            </span>
+                        </div>
+
+                        <div class="device-info">
+                            <div class="info-item">
+                                <div class="info-label">Current Temperature</div>
+                                <div class="info-value temp-display" id="current-temp-<%= device._id %>"><%= device.current_temp %>°C</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Current Humidity</div>
+                                <div class="info-value temp-display" id="current-humidity-<%= device._id %>"><%= device.current_rh %>%</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Target Temperature</div>
+                                <div class="info-value"><%= device.target_temp %>°C</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Target Humidity</div>
+                                <div class="info-value"><%= device.target_rh || 60 %>%</div>
+                            </div>
+                        </div>
+
+                        <!-- Power Control -->
+                        <div class="power-controls">
+                            <form action="/set-power" method="POST" style="flex: 1; margin: 0;">
+                                <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                <input type="hidden" name="power" value="ON">
+                                <button type="submit" class="power-btn <%= device.power === 'ON' ? 'active' : '' %>" style="width: 100%;">
+                                    Power ON
+                                </button>
+                            </form>
+                            <form action="/set-power" method="POST" style="flex: 1; margin: 0;">
+                                <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                <input type="hidden" name="power" value="OFF">
+                                <button type="submit" class="power-btn <%= device.power === 'OFF' ? 'active off' : '' %>" style="width: 100%;">
+                                    Power OFF
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Automation Toggle -->
+                        <div class="automation-toggle">
+                            <span class="toggle-label">🤖 Automation Mode</span>
+                            <form action="/toggle-automation" method="POST" style="margin: 0;" id="automation-form-<%= device._id %>">
+                                <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" name="automation_mode" <%= device.automation_mode ? "checked" : "" %> 
+                                           onchange="toggleAutomation('<%= device._id %>', this.checked)">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </form>
+                        </div>
+
+                        <!-- AC Mode Selection -->
+                        <div class="mode-controls" id="mode-controls-<%= device._id %>">
+                            <div class="info-label mb-1">❄️ AC Mode</div>
+                            <div class="mode-buttons">
+                                <form action="/set-mode" method="POST" style="flex: 1; margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="mode" value="DRY">
+                                    <button type="submit" class="mode-btn <%= device.mode === 'DRY' ? 'active' : '' %>" 
+                                            id="mode-dry-<%= device._id %>" <%= device.automation_mode ? 'disabled' : '' %>>
+                                        💧 DRY
+                                    </button>
+                                </form>
+                                <form action="/set-mode" method="POST" style="flex: 1; margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="mode" value="COOL">
+                                    <button type="submit" class="mode-btn <%= device.mode === 'COOL' ? 'active' : '' %>" 
+                                            id="mode-cool-<%= device._id %>" <%= device.automation_mode ? 'disabled' : '' %>>
+                                        ❄️ COOL
+                                    </button>
+                                </form>
+                                <form action="/set-mode" method="POST" style="flex: 1; margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="mode" value="FAN">
+                                    <button type="submit" class="mode-btn <%= device.mode === 'FAN' ? 'active' : '' %>" 
+                                            id="mode-fan-<%= device._id %>" <%= device.automation_mode ? 'disabled' : '' %>>
+                                        💨 FAN
+                                    </button>
+                                </form>
+                                <form action="/set-mode" method="POST" style="flex: 1; margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="mode" value="HEAT">
+                                    <button type="submit" class="mode-btn <%= device.mode === 'HEAT' ? 'active' : '' %>" 
+                                            id="mode-heat-<%= device._id %>" <%= device.automation_mode ? 'disabled' : '' %>>
+                                        🔥 HEAT
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Temperature Controls -->
+                        <div class="temp-controls">
+                            <div class="temp-display-control">
+                                <div class="info-label">Target Temperature</div>
+                                <div class="temp-display"><%= device.target_temp %>°C</div>
+                            </div>
+                            <div class="temp-buttons">
+                                <form action="/update-temp" method="POST" style="margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="action" value="colder">
+                                    <button type="submit" class="temp-btn colder">−</button>
+                                </form>
+                                <form action="/update-temp" method="POST" style="margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="action" value="warmer">
+                                    <button type="submit" class="temp-btn warmer">+</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Humidity Controls -->
+                        <div class="temp-controls">
+                            <div class="temp-display-control">
+                                <div class="info-label">Target Humidity</div>
+                                <div class="temp-display"><%= device.target_rh || 60 %>%</div>
+                            </div>
+                            <div class="temp-buttons">
+                                <form action="/update-humidity" method="POST" style="margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="action" value="decrease">
+                                    <button type="submit" class="temp-btn colder">−</button>
+                                </form>
+                                <form action="/update-humidity" method="POST" style="margin: 0;">
+                                    <input type="hidden" name="macAddress" value="<%= device._id %>">
+                                    <input type="hidden" name="action" value="increase">
+                                    <button type="submit" class="temp-btn warmer">+</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+        <% } else { %>
+            <div class="dashboard-section">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📱</div>
+                    <p>No devices found. Add a device to get started.</p>
+                </div>
+            </div>
+        <% } %>
+
+        <div class="dashboard-section">
+            <h3>➕ Add a New Device</h3>
+            <div class="add-device-form">
+                <form action="/add-device" method="POST">
+                    <input type="text" name="macAddress" placeholder="Enter MAC Address (e.g., AA:BB:CC:DD:EE:FF)" required>
+                    <button type="submit">Add Device</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleAutomation(deviceId, isEnabled) {
+            // Update mode buttons UI immediately for better UX
+            const modeButtons = [
+                document.getElementById('mode-dry-' + deviceId),
+                document.getElementById('mode-cool-' + deviceId),
+                document.getElementById('mode-fan-' + deviceId),
+                document.getElementById('mode-heat-' + deviceId)
+            ];
+
+            modeButtons.forEach(button => {
+                if (button) {
+                    button.disabled = isEnabled;
+                    if (isEnabled) {
+                        button.style.opacity = '0.5';
+                        button.style.cursor = 'not-allowed';
+                    } else {
+                        button.style.opacity = '1';
+                        button.style.cursor = 'pointer';
+                    }
+                }
+            });
+
+            // Submit the automation form
+            const form = document.getElementById('automation-form-' + deviceId);
+            if (form) {
+                form.submit();
+            } else {
+                console.error('Form not found for device:', deviceId);
+            }
+        }
+
+        // Initialize mode buttons state on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            <% devices.forEach(device => { %>
+                <% if (device.automation_mode) { %>
+                    (function() {
+                        const deviceId = '<%= device._id %>';
+                        const modeButtons = [
+                            document.getElementById('mode-dry-' + deviceId),
+                            document.getElementById('mode-cool-' + deviceId),
+                            document.getElementById('mode-fan-' + deviceId),
+                            document.getElementById('mode-heat-' + deviceId)
+                        ];
+                        modeButtons.forEach(button => {
+                            if (button) {
+                                button.disabled = true;
+                                button.style.opacity = '0.5';
+                                button.style.cursor = 'not-allowed';
+                            }
+                        });
+                    })();
+                <% } %>
+            <% }) %>
+
+            // Auto-refresh dashboard every 5 seconds
+            setInterval(function() {
+                window.location.reload();
+            }, 5000); // 5000 milliseconds = 5 seconds
+        });
+    </script>
+</body>
+</html>

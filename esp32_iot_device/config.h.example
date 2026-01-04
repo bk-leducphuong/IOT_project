@@ -1,0 +1,16 @@
+// Copy this file to config.h and fill in your details
+// DO NOT commit config.h to version control (it contains sensitive information)
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// WiFi Configuration
+#define WIFI_SSID "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+
+// MQTT Server Configuration
+#define MQTT_SERVER "192.168.1.100"  // Replace with your server's IP address
+#define MQTT_PORT 1883
+#define MQTT_CLIENT_ID "ESP32_IOT_Device"
+
+#endif

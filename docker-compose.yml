@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: iot_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: iot_project
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - iot_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/iot_project --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  emqx:
+    image: emqx/emqx:5.3.0
+    container_name: iot_emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"      # MQTT TCP port
+      - "8083:8083"      # MQTT WebSocket port
+      - "8084:8084"      # MQTT WebSocket SSL port
+      - "18083:18083"    # EMQX Dashboard port
+    environment:
+      EMQX_NAME: emqx
+      EMQX_HOST: localhost
+      EMQX_CLUSTER__DISCOVERY_STRATEGY: static
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    networks:
+      - iot_network
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongodb_data:
+    driver: local
+  emqx_data:
+    driver: local
+  emqx_log:
+    driver: local
+
+networks:
+  iot_network:
+    driver: bridge
