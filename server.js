@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const session = require("express-session");
 const bodyParser = require("body-parser");
-const { User, Device } = require("./database/models");
+const { User, Device, ActionLog } = require("./database/models");
 const { connectDB } = require("./database/connect");
 connectDB();
 
@@ -94,6 +94,58 @@ app.get("/dashboard", async (req, res) => {
     res.render("dashboard", { user, devices });
   } catch (error) {
     res.redirect("/login");
+  }
+});
+
+app.get("/action-logs", async (req, res) => {
+  if (!req.session.userId) {
+    return res.redirect("/login");
+  }
+  try {
+    const user = await User.findById(req.session.userId);
+    const devices = await Device.find({ _id: { $in: user.device_ids } });
+
+    // Get all action logs for user's devices, sorted by timestamp (newest first)
+    const deviceIds = devices.map((device) => device._id);
+    const filter = req.query.filter;
+    const deviceFilter = req.query.device;
+
+    let query = {};
+
+    // Build device filter using deviceMacAddress field
+    if (deviceFilter && deviceIds.includes(deviceFilter)) {
+      // Filter by specific device
+      query.deviceMacAddress = deviceFilter;
+    } else if (deviceIds.length > 0) {
+      // Filter by all user's devices
+      query.deviceMacAddress = { $in: deviceIds };
+    } else {
+      // No devices, return empty result by using a non-existent device
+      query.deviceMacAddress = { $in: [] };
+    }
+
+    // Add actor filter if specified
+    if (filter === "automation") {
+      query.actor = "AUTOMATION";
+    } else if (filter === "user") {
+      query.actor = "USER";
+    }
+
+    const actionLogs = await ActionLog.find(query)
+      .sort({ timestamp: -1 })
+      .limit(500) // Limit to last 500 logs for performance
+      .lean(); // Convert to plain JavaScript objects
+
+    res.render("action-logs", {
+      user,
+      devices,
+      actionLogs,
+      filter: filter || null,
+      deviceFilter: deviceFilter || null,
+    });
+  } catch (error) {
+    console.error("Error fetching action logs:", error);
+    res.redirect("/dashboard");
   }
 });
 
@@ -194,13 +246,25 @@ app.post("/set-power", async (req, res) => {
     const device = await Device.findById(macAddress);
     if (device) {
       device.power = power;
-      client.publish(
-        `home/sensors/${macAddress}/down`,
-        JSON.stringify({
-          action: "SET_POWER",
-          power: power,
-        }),
-      );
+
+      const mqttPayload = JSON.stringify({
+        action: "SET_POWER",
+        power: power,
+      });
+
+      client.publish(`home/sensors/${macAddress}/down`, mqttPayload);
+
+      // Log action
+      const user = await User.findById(req.session.userId);
+      const actionLog = new ActionLog({
+        actor: "USER",
+        actionType: "SET_POWER",
+        description: `User ${user?.username || "unknown"} set AC power to ${power}`,
+        timestamp: new Date(),
+        deviceMacAddress: macAddress,
+      });
+      await actionLog.save();
+
       console.log(`Sent power change to ${macAddress}: ${power}`);
       await device.save();
     }
@@ -223,13 +287,24 @@ app.post("/set-mode", async (req, res) => {
 
       // Publish mode change via MQTT if device is powered on
       if (device.power === "ON") {
-        client.publish(
-          `home/sensors/${macAddress}/down`,
-          JSON.stringify({
-            action: "SET_MODE",
-            mode: mode,
-          }),
-        );
+        const mqttPayload = JSON.stringify({
+          action: "SET_MODE",
+          mode: mode,
+        });
+
+        client.publish(`home/sensors/${macAddress}/down`, mqttPayload);
+
+        // Log action
+        const user = await User.findById(req.session.userId);
+        const actionLog = new ActionLog({
+          actor: "USER",
+          actionType: "SET_MODE",
+          description: `User ${user?.username || "unknown"} set AC mode to ${mode}`,
+          timestamp: new Date(),
+          deviceMacAddress: macAddress,
+        });
+        await actionLog.save();
+
         console.log(`Sent mode change to ${macAddress}: ${mode}`);
       }
     }

@@ -1,6 +1,6 @@
 const mqtt = require("mqtt");
 const { g36Control } = require("./algorithm");
-const { Device } = require("./database/models");
+const { Device, ActionLog } = require("./database/models");
 
 // MQTT Client
 const MQTT_BROKER_URL = "mqtt://localhost:1883";
@@ -66,7 +66,6 @@ client.on("message", async (topic, message) => {
           userTempSet: device.target_temp,
           userRHSet: device.target_rh,
         });
-        console.log(`G36 result: ${JSON.stringify(controlResult)}`);
 
         // Update device mode in database
         if (
@@ -83,13 +82,24 @@ client.on("message", async (topic, message) => {
           if (device.power === "ON") {
             device.power = "OFF";
             await device.save();
-            client.publish(
-              `home/sensors/${macAddress}/down`,
-              JSON.stringify({
-                action: "SET_POWER",
-                power: "OFF",
-              }),
-            );
+
+            const mqttPayload = JSON.stringify({
+              action: "SET_POWER",
+              power: "OFF",
+            });
+
+            client.publish(`home/sensors/${macAddress}/down`, mqttPayload);
+
+            // Log action
+            const actionLog = new ActionLog({
+              actor: "AUTOMATION",
+              actionType: "SET_POWER",
+              description: `AC turned OFF - ${controlResult.reason}`,
+              timestamp: new Date(),
+              deviceMacAddress: macAddress,
+            });
+            await actionLog.save();
+
             console.log(
               `Sent AC_OFF command to ${macAddress} - Reason: ${controlResult.reason}`,
             );
@@ -118,6 +128,17 @@ client.on("message", async (topic, message) => {
             `home/sensors/${macAddress}/down`,
             JSON.stringify(mqttCommand),
           );
+
+          // Log action
+          const actionLog = new ActionLog({
+            actor: "AUTOMATION",
+            actionType: "SET_MODE",
+            description: `Mode set to ${controlResult.mode}, target temp: ${controlResult.targetTemperature ?? "N/A"}°C - ${controlResult.reason}`,
+            timestamp: new Date(),
+            deviceMacAddress: macAddress,
+          });
+          await actionLog.save();
+
           console.log(
             `Sent AC command to ${macAddress}: mode=${controlResult.mode}, ` +
               `target_temp=${controlResult.targetTemperature ?? "N/A"}, ` +

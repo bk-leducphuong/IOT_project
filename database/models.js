@@ -23,4 +23,15 @@ const deviceSchema = new mongoose.Schema({
 
 const Device = mongoose.model("Device", deviceSchema);
 
-module.exports = { User, Device };
+// Action Log Schema
+const actionLogSchema = new mongoose.Schema({
+  actor: { type: String, required: true, enum: ["AUTOMATION", "USER"] },
+  actionType: { type: String, required: true, enum: ["SET_POWER", "SET_MODE"] },
+  description: { type: String, required: false, default: "" },
+  timestamp: { type: Date, required: true },
+  deviceMacAddress: { type: String, required: true },
+});
+
+const ActionLog = mongoose.model("ActionLog", actionLogSchema);
+
+module.exports = { User, Device, ActionLog };

@@ -10,7 +10,10 @@
     <div class="container" style="max-width: 1200px;">
         <div class="dashboard-header">
             <h1>🏠 Welcome, <%= user.username %>!</h1>
-            <a href="/logout" class="logout-btn">Logout</a>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="/action-logs" class="action-logs-btn">📋 Action Logs</a>
+                <a href="/logout" class="logout-btn">Logout</a>
+            </div>
         </div>
 
         <% if (devices && devices.length > 0) { %>
